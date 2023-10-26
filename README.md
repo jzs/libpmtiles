@@ -5,3 +5,8 @@ go-pmtiles and is currently an experimental implementation.
 
 For now it should be considered a learning process in the pmtile spec for me 
 and not to be used in any other projects.
+
+# todo
+- [ ] understand leaf directories and seeking tile id
+- [ ] implement GetTile
+- [ ] make GetTile support concurrent access
