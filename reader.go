@@ -16,6 +16,10 @@ type PMTiles struct {
 	file    *os.File
 }
 
+func (pmt *PMTiles) Header() HeaderV3 {
+	return pmt.header
+}
+
 func Open(path string) (*PMTiles, error) {
 	file, err := os.Open(path)
 	if err != nil {
