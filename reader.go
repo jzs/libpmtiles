@@ -67,7 +67,33 @@ func readHeaderAndRootDir(stream io.ReadSeeker) (HeaderV3, []EntryV3, error) {
 	return header, rootEntries, nil
 }
 
-func (pmt *PMTiles) GetTile(z uint8, x, y uint32) {
+func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) {
+
+	// pseudo code based on go-pmtiles:
+	// Request root offset 0,0 ?
+	// check min,max zoom
+	// check tile type
+	// compute tile id
+	// Do some depth? 3?
+	// root offset, root length (root dir)
+	// check if tile is in root dir
+	// if ok
+	//   if runlength > 0
+	//     tiledata offset + entry offset (root entry)
+	//   else
+	//     set dir offset to leafdirectory + entry offset
+	//     set dir len to entry.length
+	//     continue
+	// else break?
+
+	if ExtensionToTileType(extension) != pmt.header.TileType {
+		panic("unsupported extension")
+	}
+
+	if z < pmt.header.MinZoom || z > pmt.header.MaxZoom {
+		panic("Tile not found in pmtiles bla bla bla.")
+	}
+
 	tileID := ZxyToID(z, x, y)
 
 	// Seek to directory start

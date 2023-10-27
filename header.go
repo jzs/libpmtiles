@@ -57,6 +57,23 @@ const (
 	Zstd                           = 4
 )
 
+func ExtensionToTileType(ext string) TileType {
+	switch ext {
+	case "mvt":
+		return Mvt
+	case "png":
+		return Png
+	case "jpg":
+		return Jpeg
+	case "webp":
+		return Webp
+	case "avif":
+		return Avif
+	default:
+		return UnknownTileType
+	}
+}
+
 type TileType uint8
 
 func (t TileType) String() string {
