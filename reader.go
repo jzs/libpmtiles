@@ -67,7 +67,7 @@ func readHeaderAndRootDir(stream io.ReadSeeker) (HeaderV3, []EntryV3, error) {
 	return header, rootEntries, nil
 }
 
-func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) {
+func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) []byte {
 
 	// pseudo code based on go-pmtiles:
 	// Request root offset 0,0 ?
@@ -96,27 +96,75 @@ func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) {
 
 	tileID := ZxyToID(z, x, y)
 
-	// Seek to directory start
-	pmt.file.Seek(int64(pmt.header.RootOffset), 0)
+	rootTile, found := findTile(pmt.rootDir, tileID)
+	if !found {
+		panic("tile not found")
+	}
 
-	directory, err := deserialize_entries(io.LimitReader(pmt.file, int64(pmt.header.RootLength)))
+	if rootTile.RunLength > 0 {
+		// return tiledata... based on reader...
+		data, err := pmt.loadTileData(rootTile)
+		if err != nil {
+			panic("BOOM")
+		}
+		return data
+	}
+
+	dirOffset := int64(pmt.header.LeafDirectoriesOffset + rootTile.Offset)
+	dirLength := int64(rootTile.Length)
+
+	// TODO: Do not do this infinitely.
+	for {
+		tile, err := pmt.loadTile(dirOffset, dirLength, tileID)
+		if err == TileNotFound {
+			// tile not found
+			break
+		}
+		if err != nil {
+			panic("BOOM")
+		}
+
+		if tile.RunLength == 0 {
+			dirOffset = int64(pmt.header.LeafDirectoriesOffset + tile.Offset)
+			dirLength = int64(tile.Length)
+			continue
+		}
+
+		// Load tiledata...
+		tileData, err := pmt.loadTileData(tile)
+		if err != nil {
+			panic("boom")
+		}
+		return tileData
+	}
+	return nil
+}
+
+var TileNotFound = fmt.Errorf("Tile not found")
+
+func (pmt *PMTiles) loadTile(offset, length int64, tileID uint64) (EntryV3, error) {
+	// Seek to directory start
+	pmt.file.Seek(offset, 0)
+
+	directory, err := deserialize_entries(io.LimitReader(pmt.file, length))
 	if err != nil {
-		panic("BOOM")
+		return EntryV3{}, fmt.Errorf("Deserialize entries: %+w", err)
 	}
 	tile, found := findTile(directory, tileID)
 	if !found {
-		panic("BOOM tile not found")
+		return EntryV3{}, TileNotFound
 	}
-	log.Println(tile)
+	return tile, nil
+}
 
-	if tile.RunLength > 0 {
-		// range reader etc...
-		// etc...
-	} else {
-		// Try look up leaf?
+func (pmt *PMTiles) loadTileData(tile EntryV3) ([]byte, error) {
+	pmt.file.Seek(int64(pmt.header.TileDataOffset+tile.Offset), 0)
+	lr := io.LimitReader(pmt.file, int64(tile.Length))
+	data, err := io.ReadAll(lr)
+	if err != nil {
+		return nil, fmt.Errorf("Read tile data: %w", err)
 	}
-
-	// Found tile. Now load data.
+	return data, nil
 }
 
 func findTile(entries []EntryV3, tileId uint64) (EntryV3, bool) {
