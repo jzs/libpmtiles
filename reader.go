@@ -95,7 +95,7 @@ func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) ([]byte, err
 	}
 
 	if rootTile.RunLength > 0 {
-		data, err := pmt.loadTileData(rootTile)
+		data, err := loadTileData(pmt.file, pmt.header, rootTile)
 		if err != nil {
 			log.Printf("Loading tile data failed for tile: %v", tileID)
 			return nil, fmt.Errorf("Loading tile data: %v", err)
@@ -124,7 +124,7 @@ func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) ([]byte, err
 		}
 
 		// Load tiledata...
-		tileData, err := pmt.loadTileData(tile)
+		tileData, err := loadTileData(pmt.file, pmt.header, tile)
 		if err != nil {
 			log.Printf("Failed loading tile data for tile: %v", tileID)
 			return nil, fmt.Errorf("Loading tile data: %v", err)
@@ -152,9 +152,9 @@ func (pmt *PMTiles) loadTile(offset, length int64, tileID uint64) (EntryV3, erro
 	return tile, nil
 }
 
-func (pmt *PMTiles) loadTileData(tile EntryV3) ([]byte, error) {
-	pmt.file.Seek(int64(pmt.header.TileDataOffset+tile.Offset), 0)
-	lr := io.LimitReader(pmt.file, int64(tile.Length))
+func loadTileData(stream io.ReadSeeker, header HeaderV3, tile EntryV3) ([]byte, error) {
+	stream.Seek(int64(header.TileDataOffset+tile.Offset), 0)
+	lr := io.LimitReader(stream, int64(tile.Length))
 	data, err := io.ReadAll(lr)
 	if err != nil {
 		return nil, fmt.Errorf("Read tile data: %w", err)
