@@ -67,47 +67,31 @@ func readHeaderAndRootDir(stream io.ReadSeeker) (HeaderV3, []EntryV3, error) {
 	return header, rootEntries, nil
 }
 
-func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) []byte {
-
-	// pseudo code based on go-pmtiles:
-	// Request root offset 0,0 ?
-	// check min,max zoom
-	// check tile type
-	// compute tile id
-	// Do some depth? 3?
-	// root offset, root length (root dir)
-	// check if tile is in root dir
-	// if ok
-	//   if runlength > 0
-	//     tiledata offset + entry offset (root entry)
-	//   else
-	//     set dir offset to leafdirectory + entry offset
-	//     set dir len to entry.length
-	//     continue
-	// else break?
-
+func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) ([]byte, error) {
 	if ExtensionToTileType(extension) != pmt.header.TileType {
-		panic("unsupported extension")
+		return nil, fmt.Errorf("Unsupported Extension")
 	}
 
 	if z < pmt.header.MinZoom || z > pmt.header.MaxZoom {
-		panic("Tile not found in pmtiles bla bla bla.")
+		log.Println("Zoom out of bounds. Tile not found")
+		return nil, TileNotFound
 	}
 
 	tileID := ZxyToID(z, x, y)
 
 	rootTile, found := findTile(pmt.rootDir, tileID)
 	if !found {
-		panic("tile not found")
+		log.Printf("Tile not found with id: %v", tileID)
+		return nil, TileNotFound
 	}
 
 	if rootTile.RunLength > 0 {
-		// return tiledata... based on reader...
 		data, err := pmt.loadTileData(rootTile)
 		if err != nil {
-			panic("BOOM")
+			log.Printf("Loading tile data failed for tile: %v", tileID)
+			return nil, fmt.Errorf("Loading tile data: %v", err)
 		}
-		return data
+		return data, nil
 	}
 
 	dirOffset := int64(pmt.header.LeafDirectoriesOffset + rootTile.Offset)
@@ -117,11 +101,11 @@ func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) []byte {
 	for {
 		tile, err := pmt.loadTile(dirOffset, dirLength, tileID)
 		if err == TileNotFound {
-			// tile not found
-			break
+			return nil, TileNotFound
 		}
 		if err != nil {
-			panic("BOOM")
+			log.Printf("Failed loading tile for id: %v", tileID)
+			return nil, fmt.Errorf("Loading tile: %v", err)
 		}
 
 		if tile.RunLength == 0 {
@@ -133,11 +117,13 @@ func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) []byte {
 		// Load tiledata...
 		tileData, err := pmt.loadTileData(tile)
 		if err != nil {
-			panic("boom")
+			log.Printf("Failed loading tile data for tile: %v", tileID)
+			return nil, fmt.Errorf("Loading tile data: %v", err)
 		}
-		return tileData
+		return tileData, nil
 	}
-	return nil
+
+	return nil, TileNotFound
 }
 
 var TileNotFound = fmt.Errorf("Tile not found")
