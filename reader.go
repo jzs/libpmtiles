@@ -16,10 +16,13 @@ type PMTiles struct {
 	file    *os.File
 }
 
+// Header returns the PMTiles header from the archive
 func (pmt *PMTiles) Header() HeaderV3 {
 	return pmt.header
 }
 
+// Open, opens a pmtiles file and parses the first 16kb
+// returns a PMTiles struct
 func Open(path string) (*PMTiles, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -67,6 +70,12 @@ func readHeaderAndRootDir(stream io.ReadSeeker) (HeaderV3, []EntryV3, error) {
 	return header, rootEntries, nil
 }
 
+// Close, closes the underlying file descriptor
+func (pmt *PMTiles) Close() error {
+	return pmt.file.Close()
+}
+
+// GetTile returns a tile from the PMTiles archive.
 func (pmt *PMTiles) GetTile(z uint8, x, y uint32, extension string) ([]byte, error) {
 	if ExtensionToTileType(extension) != pmt.header.TileType {
 		return nil, fmt.Errorf("Unsupported Extension")
